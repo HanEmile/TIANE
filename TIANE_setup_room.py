@@ -5,6 +5,7 @@ import time
 import json
 import sys
 import os
+import argparse
 
 def frage_erfordert_antwort(fragentext):
     while True:
@@ -152,6 +153,31 @@ def end_config(config_data, system_name):
     print('\n[{}] Auf wiedersehen!\n'.format(system_name.upper()))
     sys.exit()
 
+
+########################### PARSER ############################
+
+# Definiere einen neuen argument parser
+parse = argparse.ArgumentParser(description="Raum Setup")
+
+# Definiere die Argumente
+parse.add_argument('--room_name', help="Name des raums")
+parse.add_argument('--ip', help="IP-Adresse des Servers")
+parse.add_argument('--hotword_sensitivity', help="Gibt an, wie stark dein Sprachassistent auf sein Schlüsselwort (z.B. \"Hey TIANE\") reagiert.", type=float)
+parse.add_argument('--hotword_audio_gain', help="Gibt an, wie stark dein Sprachassistent die vom Mikrofon aufgenommenen Audiosignale verstärkt.", type=float)
+parse.add_argument('-use_cameras', action="store_true", help="Nutze Kameras")
+parse.add_argument('--cameras', help="Liste an Kamera name", default=[], type=str, action="append", nargs="*")
+parse.add_argument('-use_existing_conf', action="store_true", help="Falls eine Konfiguration bereits existiert, nutze sie")
+
+# Parse die Argumente und speichere sie entsprechend
+args = parse.parse_args()
+room_name = args.room_name
+use_existing_conf = args.use_existing_conf
+ip = args.ip
+hotword_sensitivity = args.hotword_sensitivity
+hotword_audio_gain = args.hotword_audio_gain
+use_cameras = args.use_cameras
+cameras = args.cameras
+
 ########################### ANFANG ###########################
 if not os.path.exists('room/TIANE_config.json'):
     print('\n[ERROR] Die nötigen Dateien (Ordner "room") für diesen Setup-Schritt konnten nicht gefunden werden.\n'
@@ -186,13 +212,24 @@ if server_config_data['TNetwork_Key'] == '':
     sys.exit()
 
 print('\n')
-room_name = frage_erfordert_antwort('Bitte gib einen Namen für diesen {}-Raumclient ein (z.B. "Küche" oder "Wohnzimmer"): '.format(system_name))
-print('Okay, dieser {}-Raum wird {} heißen.\n'.format(system_name, room_name))
-time.sleep(1)
+
+
+# Falls ein Raumname per Kommandozeilenargument definiert wurde, nutze ihn.
+
+if room_name != None:
+    pass 
+else:
+    room_name = frage_erfordert_antwort('Bitte gib einen Namen für diesen {}-Raumclient ein (z.B. "Küche" oder "Wohnzimmer"): '.format(system_name))
+    print('Okay, dieser {}-Raum wird {} heißen.\n'.format(system_name, room_name))
+    time.sleep(1)
 
 if os.path.exists(room_name + '/TIANE_config.json'):
-    print('Es wurde eine bestehende Konfiguration für den Raum {} gefunden.'.format(room_name))
-    antwort = ja_nein_frage('Soll diese Konfiguration als Standardantworten geladen werden [Ja / Nein]? [Standard ist "Ja"]: ', True)
+    if use_existing_conf == True:
+        pass
+    else:
+        print('Es wurde eine bestehende Konfiguration für den Raum {} gefunden.'.format(room_name))
+        antwort = ja_nein_frage('Soll diese Konfiguration als Standardantworten geladen werden [Ja / Nein]? [Standard ist "Ja"]: ', True)
+
     if antwort == True:
         print('Konfiguration wird geladen...\n')
         with open(room_name + '/TIANE_config.json', 'r') as config_file:
@@ -207,104 +244,139 @@ else:
 room_config_data['Room_name'] = room_name
 room_config_data['TNetwork_Key'] = server_config_data['TNetwork_Key']
 
-print('Als nächstes musst du die lokale IP-Adresse deines {}-Servers eingeben, damit dieser Raum ihn später erreichen kann.\n'
-      'Du kannst die Adresse zum Beispiel in den Netzwerkeinstellungen im Informations-Fenster zu deiner derzeitigen Verbindung unter "IPv4-Adresse" finden '
-      'oder sie dir mit dem Konsolenbefehl "ifconfig -a" anzeigen lassen.\n'
-      'Bitte stell sicher, dass du die Adresse im richtigen Format eingibst (z.B. 192.168.1.101)!'.format(system_name))
-if not room_config_data['Server_IP'] == '':
-    default_ip = room_config_data['Server_IP']
-    server_ip = input('Bitte gib die lokale IP-Adresse deines {}-Servers ein [Standard ist {}]: '.format(system_name, default_ip))
-    if server_ip == '' or server_ip == ' ':
-        room_config_data['Server_IP'] = default_ip
-        server_ip = default_ip
-    else:
-        room_config_data['Server_IP'] = server_ip
+if ip != None:
+    server_ip = ip
 else:
-    server_ip = frage_erfordert_antwort('Bitte gib die lokale IP-Adresse deines {}-Servers ein: '.format(system_name))
-    room_config_data['Server_IP'] = server_ip
-print('Okay, dieser Raumclient wird deinen Server unter {} suchen.\n'.format(server_ip))
-time.sleep(1)
-
-print('Die folgenden beiden Parameter betreffen die Erkennung des Schlüsselwortes und allgemein die Spracheingabe von {}.\n'
-      'Da sich die optimalen Werte für diese Einstellungen leider von Fall zu Fall stark unterscheiden, sind die vorgeschlagenen Standardantworten nur sehr grobe Richtwerte.\n'
-      'Wenn bei dir die Schlüsselworterkennung unzuverlässig oder im Gegenteil zu oft anspringt, solltest du diese Parameter auf jeden Fall noch einmal bearbeiten.\n'
-      'Du kannst sie dann entweder durch erneuten Durchlauf dieses Setup-Assistenten oder direkt in der Datei "TIANE_config.json" im Ordner des entsprechenden Raumes ändern.'.format(system_name))
-time.sleep(1)
-text = input('[ENTER drücken zum fortfahren]')
-
-default_hotword_sensitivity = room_config_data['Hotword_sensitivity']
-print('\nDer erste Parameter, "Hotword_sensitivity", gibt an, wie stark dein Sprachassistent auf sein Schlüsselwort (z.B. "Hey TIANE") reagiert.\n'
-      'Je höher der Wert, desto höher die Wahrscheinlichkeit, dass in einem Satz oder Geräusch das Schlüsselwort erkannt wird.\n'
-      'Demnach solltest du den Wert erhöhen, wenn dein Sprachassistent dein Schlüsselwort zu selten versteht, und senken, wenn er zu oft '
-      'fälschlicherweise Gesprächsfetzen oder Umgebungsgeräusche für sein Schlüsselwort hält.')
-hotword_sensitivity = frage_nach_float_zahl('Bitte gib einen Wert für "Hotword_sensitivity" ein [Standard ist {}]: '.format(default_hotword_sensitivity), default_hotword_sensitivity)
-room_config_data['Hotword_sensitivity'] = hotword_sensitivity
-print('Okay, der Wert für "Hotword_sensitivity" beträgt jetzt {}.\n'.format(hotword_sensitivity))
-time.sleep(1)
-
-default_hotword_audio_gain = room_config_data['Hotword_Audio_gain']
-print('Der zweite Parameter, "Hotword_Audio_gain", gibt an, wie stark dein Sprachassistent die vom Mikrofon aufgenommenen Audiosignale verstärkt.\n'
-      'Diese Verstärkung gilt sowohl für die Schlüsselworterkennung als auch für die allgemeine Spracheingabe.\n'
-      'Wenn dein Assistent dich schlechter versteht, wenn du dich weiter vom Mikrofon entfernst, kann es helfen, diesen Wert zu erhöhen.')
-hotword_audio_gain = frage_nach_float_zahl('Bitte gib einen Wert für "Hotword_Audio_gain" ein [Standard ist {}]: '.format(default_hotword_audio_gain), default_hotword_audio_gain)
-room_config_data['Hotword_Audio_gain'] = hotword_audio_gain
-print('Okay, der Wert für "Hotword_Audio_gain" beträgt jetzt {}.\n'.format(hotword_audio_gain))
-time.sleep(1)
-
-print('Im letzten Schritt kannst du festlegen, welche der mitgelieferten optionalen Module dieser Raum verwenden soll.\n'
-      'Du kannst die verwendeten Module jederzeit im Ordner "modules(/continuous)" im {}-Ordner des Raumclients einsehen und bearbeiten, '
-      'optionale Module, die du bei dieser Einrichtung noch nicht auswählst, finden sich im Ordner "resources/optional_modules"'.format(system_name))
-text = input('[ENTER drücken zum fortfahren]')
-
-default = room_config_data['use_cameras']
-use_cameras = ja_nein_frage('\nSollen an dieses {}-Raum-Gerät Kameras angeschlossen werden (Voraussetzung: OpenCV installiert) [Ja / Nein]? [Standard ist "{}"]: '.format(system_name, tf2jn(default)), default)
-room_config_data['use_cameras'] = use_cameras
-if use_cameras == True:
-    print('Okay, dieser Raumclient wird mit dem Modul "cameras.py" Kamerabilder aufnehmen und an deinen {}-Server senden können.\n'
-          'Dafür musst du allerdings zunächst im Folgenden die zu verwendenden Kameras konfigurieren:\n'.format(system_name))
+    print('Als nächstes musst du die lokale IP-Adresse deines {}-Servers eingeben, damit dieser Raum ihn später erreichen kann.\n'
+          'Du kannst die Adresse zum Beispiel in den Netzwerkeinstellungen im Informations-Fenster zu deiner derzeitigen Verbindung unter "IPv4-Adresse" finden '
+          'oder sie dir mit dem Konsolenbefehl "ifconfig -a" anzeigen lassen.\n'
+          'Bitte stell sicher, dass du die Adresse im richtigen Format eingibst (z.B. 192.168.1.101)!'.format(system_name))
+    if not room_config_data['Server_IP'] == '':
+        default_ip = room_config_data['Server_IP']
+        server_ip = input('Bitte gib die lokale IP-Adresse deines {}-Servers ein [Standard ist {}]: '.format(system_name, default_ip))
+        if server_ip == '' or server_ip == ' ':
+            room_config_data['Server_IP'] = default_ip
+            server_ip = default_ip
+        else:
+            room_config_data['Server_IP'] = server_ip
+    else:
+        server_ip = frage_erfordert_antwort('Bitte gib die lokale IP-Adresse deines {}-Servers ein: '.format(system_name))
+        room_config_data['Server_IP'] = server_ip
+    print('Okay, dieser Raumclient wird deinen Server unter {} suchen.\n'.format(server_ip))
     time.sleep(1)
 
-    picam_already_used = False
-    new_cam_config = {}
-    cam_src = 0
-    cam_index = 1
-    antwort = ja_nein_frage('Möchtest du jetzt eine Kamera konfigurieren [Ja / Nein]? [Standard ist "Ja"]: ', True)
-    if antwort == True:
-        camname = frage_mit_default('\nBitte gib einen Namen für diese Kamera ein (z.B. "Türkamera" oder "Cam1") [Standard ist "Cam{}"]: '.format(cam_index), 'Cam{}'.format(str(cam_index)))
-        print('Okay, diese Kamera wird "{}" heißen.'.format(camname))
-        try:
-            default_cam_config = room_config_data['Cameras'][camname]
-        except KeyError:
-            default_cam_config = {}
-        cam_config_data, picam_already_used = configure_camera(default_cam_config, picam_already_used)
-        if not cam_config_data['PiCam']:
-            cam_config_data['src'] = cam_src
-            cam_src += 1
-        cam_index += 1
-        new_cam_config[camname] = cam_config_data
-
-        while True:
-            antwort = ja_nein_frage('Möchtest du eine weitere Kamera hinzufügen [Ja / Nein]? [Standard ist "Nein"]: ', False)
-            if antwort == True:
-                camname = frage_mit_default('\nBitte gib einen Namen für diese Kamera ein (z.B. "Türkamera" oder "Cam1") [Standard ist "Cam{}"]: '.format(cam_index), 'Cam{}'.format(str(cam_index)))
-                print('Okay, diese Kamera wird "{}" heißen.'.format(camname))
-                try:
-                    default_cam_config = room_config_data['Cameras'][camname]
-                except KeyError:
-                    default_cam_config = {}
-                cam_config_data, picam_already_used = configure_camera(default_cam_config, picam_already_used)
-                if not cam_config_data['PiCam']:
-                    cam_config_data['src'] = cam_src
-                    cam_src += 1
-                cam_index += 1
-                new_cam_config[camname] = cam_config_data
-            else:
-                print('Okay, es wird keine weitere Kamera hinzugefügt.\n')
-                room_config_data['Cameras'] = new_cam_config
-                break
-    else:
-        print('Achtung: Es wurden keine Kameras konfiguriert!')
+if hotword_sensitivity != None or hotword_audio_gain != None:
+    pass
 else:
-    print('Okay, dieser Raumclient wird keine Kamera-Funktionen verwenden.\n')
+    print('Die folgenden beiden Parameter betreffen die Erkennung des Schlüsselwortes und allgemein die Spracheingabe von {}.\n'
+          'Da sich die optimalen Werte für diese Einstellungen leider von Fall zu Fall stark unterscheiden, sind die vorgeschlagenen Standardantworten nur sehr grobe Richtwerte.\n'
+          'Wenn bei dir die Schlüsselworterkennung unzuverlässig oder im Gegenteil zu oft anspringt, solltest du diese Parameter auf jeden Fall noch einmal bearbeiten.\n'
+          'Du kannst sie dann entweder durch erneuten Durchlauf dieses Setup-Assistenten oder direkt in der Datei "TIANE_config.json" im Ordner des entsprechenden Raumes ändern.'.format(system_name))
+    time.sleep(1)
+    text = input('[ENTER drücken zum fortfahren]')
+
+if hotword_sensitivity != None:
+    pass
+else:
+    default_hotword_sensitivity = room_config_data['Hotword_sensitivity']
+    print('\nDer erste Parameter, "Hotword_sensitivity", gibt an, wie stark dein Sprachassistent auf sein Schlüsselwort (z.B. "Hey TIANE") reagiert.\n'
+          'Je höher der Wert, desto höher die Wahrscheinlichkeit, dass in einem Satz oder Geräusch das Schlüsselwort erkannt wird.\n'
+          'Demnach solltest du den Wert erhöhen, wenn dein Sprachassistent dein Schlüsselwort zu selten versteht, und senken, wenn er zu oft '
+          'fälschlicherweise Gesprächsfetzen oder Umgebungsgeräusche für sein Schlüsselwort hält.')
+    hotword_sensitivity = frage_nach_float_zahl('Bitte gib einen Wert für "Hotword_sensitivity" ein [Standard ist {}]: '.format(default_hotword_sensitivity), default_hotword_sensitivity)
+    room_config_data['Hotword_sensitivity'] = hotword_sensitivity
+    print('Okay, der Wert für "Hotword_sensitivity" beträgt jetzt {}.\n'.format(hotword_sensitivity))
+    time.sleep(1)
+
+if hotword_audio_gain != None:
+    pass
+else:
+    default_hotword_audio_gain = room_config_data['Hotword_Audio_gain']
+    print('Der zweite Parameter, "Hotword_Audio_gain", gibt an, wie stark dein Sprachassistent die vom Mikrofon aufgenommenen Audiosignale verstärkt.\n'
+          'Diese Verstärkung gilt sowohl für die Schlüsselworterkennung als auch für die allgemeine Spracheingabe.\n'
+          'Wenn dein Assistent dich schlechter versteht, wenn du dich weiter vom Mikrofon entfernst, kann es helfen, diesen Wert zu erhöhen.')
+    hotword_audio_gain = frage_nach_float_zahl('Bitte gib einen Wert für "Hotword_Audio_gain" ein [Standard ist {}]: '.format(default_hotword_audio_gain), default_hotword_audio_gain)
+    room_config_data['Hotword_Audio_gain'] = hotword_audio_gain
+    print('Okay, der Wert für "Hotword_Audio_gain" beträgt jetzt {}.\n'.format(hotword_audio_gain))
+    time.sleep(1)
+
+if use_cameras == True:
+    room_config_data['use_cameras'] = True
+else:
+    print('Im letzten Schritt kannst du festlegen, welche der mitgelieferten optionalen Module dieser Raum verwenden soll.\n'
+          'Du kannst die verwendeten Module jederzeit im Ordner "modules(/continuous)" im {}-Ordner des Raumclients einsehen und bearbeiten, '
+          'optionale Module, die du bei dieser Einrichtung noch nicht auswählst, finden sich im Ordner "resources/optional_modules"'.format(system_name))
+    text = input('[ENTER drücken zum fortfahren]')
+
+    default = room_config_data['use_cameras']
+    use_cameras = ja_nein_frage('\nSollen an dieses {}-Raum-Gerät Kameras angeschlossen werden (Voraussetzung: OpenCV installiert) [Ja / Nein]? [Standard ist "{}"]: '.format(system_name, tf2jn(default)), default)
+    room_config_data['use_cameras'] = use_cameras
+
+if cameras != []:
+    for a in cameras:
+        picam_already_used = False
+        new_cam_config = {}
+        cam_src = 0
+        cam_index = 1
+        for camname in a:
+            try:
+                default_cam_config = room_config_data['Cameras'][camname]
+            except KeyError:
+                default_cam_config = {}
+            cam_config_data, picam_already_used = configure_camera(default_cam_config, picam_already_used)
+            if not cam_config_data['PiCam']:
+                cam_config_data['src'] = cam_src
+                cam_src += 1
+            cam_index += 1
+            new_cam_config[camname] = cam_config_data
+
+else:
+    if use_cameras == True:
+        print('Okay, dieser Raumclient wird mit dem Modul "cameras.py" Kamerabilder aufnehmen und an deinen {}-Server senden können.\n'
+              'Dafür musst du allerdings zunächst im Folgenden die zu verwendenden Kameras konfigurieren:\n'.format(system_name))
+        time.sleep(1)
+
+        picam_already_used = False
+        new_cam_config = {}
+        cam_src = 0
+        cam_index = 1
+        antwort = ja_nein_frage('Möchtest du jetzt eine Kamera konfigurieren [Ja / Nein]? [Standard ist "Ja"]: ', True)
+        if antwort == True:
+            camname = frage_mit_default('\nBitte gib einen Namen für diese Kamera ein (z.B. "Türkamera" oder "Cam1") [Standard ist "Cam{}"]: '.format(cam_index), 'Cam{}'.format(str(cam_index)))
+            print('Okay, diese Kamera wird "{}" heißen.'.format(camname))
+            try:
+                default_cam_config = room_config_data['Cameras'][camname]
+            except KeyError:
+                default_cam_config = {}
+            cam_config_data, picam_already_used = configure_camera(default_cam_config, picam_already_used)
+            if not cam_config_data['PiCam']:
+                cam_config_data['src'] = cam_src
+                cam_src += 1
+            cam_index += 1
+            new_cam_config[camname] = cam_config_data
+
+            while True:
+                antwort = ja_nein_frage('Möchtest du eine weitere Kamera hinzufügen [Ja / Nein]? [Standard ist "Nein"]: ', False)
+                if antwort == True:
+                    camname = frage_mit_default('\nBitte gib einen Namen für diese Kamera ein (z.B. "Türkamera" oder "Cam1") [Standard ist "Cam{}"]: '.format(cam_index), 'Cam{}'.format(str(cam_index)))
+                    print('Okay, diese Kamera wird "{}" heißen.'.format(camname))
+                    try:
+                        default_cam_config = room_config_data['Cameras'][camname]
+                    except KeyError:
+                        default_cam_config = {}
+                    cam_config_data, picam_already_used = configure_camera(default_cam_config, picam_already_used)
+                    if not cam_config_data['PiCam']:
+                        cam_config_data['src'] = cam_src
+                        cam_src += 1
+                    cam_index += 1
+                    new_cam_config[camname] = cam_config_data
+                else:
+                    print('Okay, es wird keine weitere Kamera hinzugefügt.\n')
+                    room_config_data['Cameras'] = new_cam_config
+                    break
+        else:
+            print('Achtung: Es wurden keine Kameras konfiguriert!')
+    else:
+        print('Okay, dieser Raumclient wird keine Kamera-Funktionen verwenden.\n')
 
 end_config(room_config_data, system_name)

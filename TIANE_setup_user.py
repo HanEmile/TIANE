@@ -4,6 +4,7 @@ import time
 import json
 import sys
 import os
+import argparse
 
 def frage_erfordert_antwort(fragentext):
     while True:
@@ -75,6 +76,38 @@ def end_config(config_data, system_name):
     print('\n[{}] Auf wiedersehen!\n'.format(system_name.upper()))
     sys.exit()
 
+########################### PARSER ############################
+
+# Definiere einen neuen argument parser
+parse = argparse.ArgumentParser(description="Server Setup", add_help=False)
+
+# Definiere die Argumente
+parse.add_argument('--name', help="Name des Sprachassistenten")
+parse.add_argument('--role', help="Nutzer Role")
+parse.add_argument('-use_existing_config', action="store_true" ,help="Nutze eine bereits bestehende Konfiguration")
+parse.add_argument('--telegram_id', help="Telegram user ID (@get_id_bot anschreiben)")
+parse.add_argument('--vorname', help="Vorname")
+parse.add_argument('--nachname', help="Nachname")
+parse.add_argument('--bday_year', help="Geburtsjahr")
+parse.add_argument('--bday_month', help="Geburtsmonat")
+parse.add_argument('--bday_day', help="Geburtstag")
+parse.add_argument('-h', '--help', action='help', default=argparse.SUPPRESS,
+                    help='Zeigt diese hilfe Nachricht an und beendet das Program')
+
+# Parse die Argumente und speichere sie entsprechend
+args = parse.parse_args()
+name = args.name
+role = args.role
+use_existing_config = args.use_existing_config
+telegram_id = args.telegram_id
+
+vorname = args.vorname
+nachname = args.nachname
+
+bday_year = args.bday_year
+bday_month = args.bday_month
+bday_day = args.bday_day
+
 ########################### ANFANG ###########################
 try:
     os.remove('server/users/README.txt')
@@ -115,25 +148,36 @@ time.sleep(1)
 text = input('[ENTER drücken zum fortfahren]')
 
 print('\n')
-user_name = frage_erfordert_antwort('Bitte gib einen Namen für diesen {}-Benutzer ein: '.format(system_name))
-print('Okay, dieser Benutzer wird {} heißen.\n'.format(user_name))
-time.sleep(1)
 
-user_exists = False
-if os.path.exists('server/users/' + user_name + '/User_Info.json'):
-    user_exists = True
-    print('Es wurde eine bestehende Konfiguration für den Nutzer {} gefunden.'.format(user_name))
-    antwort = ja_nein_frage('Soll diese Konfiguration als Standardantworten geladen werden [Ja / Nein]? [Standard ist "Ja"]', True)
-    if antwort == True:
-        print('Konfiguration wird geladen...\n')
-        with open('server/users/' + user_name + '/User_Info.json', 'r') as config_file:
-            user_config_data = json.load(config_file)
+if name != None:
+    user_name = name
+else:
+    user_name = frage_erfordert_antwort('Bitte gib einen Namen für diesen {}-Benutzer ein: '.format(system_name))
+    print('Okay, dieser Benutzer wird {} heißen.\n'.format(user_name))
+    time.sleep(1)
+
+if use_existing_config != None:
+    user_exists = False
+    if os.path.exists('server/users/' + user_name + '/User_Info.json'):
+        user_exists = True
+        print('Es wurde eine bestehende Konfiguration für den Nutzer {} gefunden.'.format(user_name))
+
+        antwort = True 
+        if use_existing_config != None:
+            antwort = True
+        else:
+            antwort = ja_nein_frage('Soll diese Konfiguration als Standardantworten geladen werden [Ja / Nein]? [Standard ist "Ja"]', True)
+
+        if antwort == True:
+            print('Konfiguration wird geladen...\n')
+            with open('server/users/' + user_name + '/User_Info.json', 'r') as config_file:
+                user_config_data = json.load(config_file)
+        else:
+            with open('server/resources/user_default/User_Info.json', 'r') as config_file:
+                user_config_data = json.load(config_file)
     else:
         with open('server/resources/user_default/User_Info.json', 'r') as config_file:
             user_config_data = json.load(config_file)
-else:
-    with open('server/resources/user_default/User_Info.json', 'r') as config_file:
-        user_config_data = json.load(config_file)
 
 user_config_data['User_Info']['name'] = user_name
 if not user_exists:
@@ -141,69 +185,90 @@ if not user_exists:
     num_users = len(subdirs)
     user_config_data['User_Info']['uid'] = num_users + 1
 
-default_role = user_config_data['User_Info']['role']
-user_role = frage_mit_default('Bitte gib eine Berechtigungsstufe für den Nutzer "{}" ein (z.B. "USER" oder "ADMIN") [Standard ist "{}"]: '.format(user_name, default_role), default_role)
-user_config_data['User_Info']['role'] = user_role
-print('Okay, der Nutzer "{}" wird "{}" sein.\n'.format(user_name, user_role))
-time.sleep(1)
-
-if server_config_data['telegram']:
-    default_id = user_config_data['User_Info']['telegram_id']
-    telegram_id = frage_nach_zahl('Bitte gib die Telegram-ID-Nummer dieses Nutzers ein (oder 0, wenn für diesen Nutzer kein Telegram-Zugang eingerichtet werden soll). '
-                                  'Tipp: Um deine ID herauszufinden, kannst du deinen Sprachassistenten einfach schon mal anschreiben und die ID aus der unvermeidlichen '
-                                  'Fehlermeldung entnehmen. [Standard ist "{}"]: '.format(default_id), default_id)
-    user_config_data['User_Info']['telegram_id'] = telegram_id
-    if telegram_id == 0:
-        print('Okay, für diesen Nutzer wird kein Telegram-Zugang eingerichtet.\n')
-    else:
-        print('Okay, {} wird den Nutzer "{}" an der Telegram-ID "{}" erkennen.\n'.format(system_name, user_name, telegram_id))
+if role != None:
+    user_role = role
+else:
+    default_role = user_config_data['User_Info']['role']
+    user_role = frage_mit_default('Bitte gib eine Berechtigungsstufe für den Nutzer "{}" ein (z.B. "USER" oder "ADMIN") [Standard ist "{}"]: '.format(user_name, default_role), default_role)
+    user_config_data['User_Info']['role'] = user_role
+    print('Okay, der Nutzer "{}" wird "{}" sein.\n'.format(user_name, user_role))
     time.sleep(1)
 
-print('Die wichtigsten Schritte zur Einrichtung dieses Nutzers sind damit abgeschlossen.\n'
-      'Im Anschluss werden nun noch einige persönliche Daten über den Nutzer abgefragt, die von bestimmten Modulen verwendet werden.\n'
-      'Wenn du zu einer Frage keine Angaben machen möchtest, kannst du auch einfach [ENTER] drücken, ohne etwas einzugeben.\n'
-      'Die allermeisten {}-Module werden auch ohne diese Informationen problemlos funktionieren.'.format(system_name))
-time.sleep(1)
-text = input('[ENTER drücken zum fortfahren]')
-
-default_first_name = user_config_data['User_Info']['first_name']
-if not default_first_name == '':
-    first_name = frage_mit_default('\nBitte gib deinen vollen Vornamen ein [Standard ist "{}"]: '.format(default_first_name), default_first_name)
+if telegram_id != None:
+    pass
 else:
-    first_name = input('\nBitte gib deinen vollen Vornamen ein: ')
-user_config_data['User_Info']['first_name'] = first_name
-time.sleep(1)
+    if server_config_data['telegram']:
+        default_id = user_config_data['User_Info']['telegram_id']
+        telegram_id = frage_nach_zahl('Bitte gib die Telegram-ID-Nummer dieses Nutzers ein (oder 0, wenn für diesen Nutzer kein Telegram-Zugang eingerichtet werden soll). '
+                                      'Tipp: Um deine ID herauszufinden, kannst du deinen Sprachassistenten einfach schon mal anschreiben und die ID aus der unvermeidlichen '
+                                      'Fehlermeldung entnehmen. [Standard ist "{}"]: '.format(default_id), default_id)
+        user_config_data['User_Info']['telegram_id'] = telegram_id
+        if telegram_id == 0:
+            print('Okay, für diesen Nutzer wird kein Telegram-Zugang eingerichtet.\n')
+        else:
+            print('Okay, {} wird den Nutzer "{}" an der Telegram-ID "{}" erkennen.\n'.format(system_name, user_name, telegram_id))
+        time.sleep(1)
 
-default_last_name = user_config_data['User_Info']['last_name']
-if not default_last_name == '':
-    last_name = frage_mit_default('\nBitte gib deinen vollen Nachnamen ein [Standard ist "{}"]: '.format(default_last_name), default_last_name)
-else:
-    last_name = input('\nBitte gib deinen vollen Nachnamen ein: ')
-user_config_data['User_Info']['last_name'] = last_name
-time.sleep(1)
+    print('Die wichtigsten Schritte zur Einrichtung dieses Nutzers sind damit abgeschlossen.\n'
+          'Im Anschluss werden nun noch einige persönliche Daten über den Nutzer abgefragt, die von bestimmten Modulen verwendet werden.\n'
+          'Wenn du zu einer Frage keine Angaben machen möchtest, kannst du auch einfach [ENTER] drücken, ohne etwas einzugeben.\n'
+          'Die allermeisten {}-Module werden auch ohne diese Informationen problemlos funktionieren.'.format(system_name))
+    time.sleep(1)
+    text = input('[ENTER drücken zum fortfahren]')
 
-default_bday_year = user_config_data['User_Info']['date_of_birth']['year']
-if not default_bday_year == 0:
-    bday_year = frage_nach_zahl('\nBitte gib dein Geburtsjahr ein (als ganze Jahreszahl, z.B. "1970") [Standard ist "{}"]: '.format(default_bday_year), default_bday_year)
+if vorname != None:
+    pass
 else:
-    bday_year = frage_nach_zahl('\nBitte gib dein Geburtsjahr ein (als ganze Jahreszahl, z.B. "1970"): ', default_bday_year)
-user_config_data['User_Info']['date_of_birth']['year'] = bday_year
-time.sleep(1)
+    default_first_name = user_config_data['User_Info']['first_name']
+    if not default_first_name == '':
+        first_name = frage_mit_default('\nBitte gib deinen vollen Vornamen ein [Standard ist "{}"]: '.format(default_first_name), default_first_name)
+    else:
+        first_name = input('\nBitte gib deinen vollen Vornamen ein: ')
+    user_config_data['User_Info']['first_name'] = first_name
+    time.sleep(1)
 
-default_bday_month = user_config_data['User_Info']['date_of_birth']['month']
-if not default_bday_month == 0:
-    bday_month = frage_nach_zahl('\nBitte gib deinen Geburtsmonat ein (als Zahl, z.B. "01") [Standard ist "{}"]: '.format(default_bday_month), default_bday_month)
+if nachname != None:
+    pass
 else:
-    bday_month = frage_nach_zahl('\nBitte gib deinen Geburtsmonat ein (als Zahl, z.B. "01"): ', default_bday_month)
-user_config_data['User_Info']['date_of_birth']['month'] = bday_month
-time.sleep(1)
+    default_last_name = user_config_data['User_Info']['last_name']
+    if not default_last_name == '':
+        last_name = frage_mit_default('\nBitte gib deinen vollen Nachnamen ein [Standard ist "{}"]: '.format(default_last_name), default_last_name)
+    else:
+        last_name = input('\nBitte gib deinen vollen Nachnamen ein: ')
+    user_config_data['User_Info']['last_name'] = last_name
+    time.sleep(1)
 
-default_bday_day = user_config_data['User_Info']['date_of_birth']['day']
-if not default_bday_day == 0:
-    bday_day = frage_nach_zahl('\nBitte gib deinen Geburtstag ein (als Zahl, z.B. "30") [Standard ist "{}"]: '.format(default_bday_day), default_bday_day)
+if bday_year != None:
+    pass
 else:
-    bday_day = frage_nach_zahl('\nBitte gib deinen Geburtstag ein (als Zahl, z.B. "30"): ', default_bday_day)
-user_config_data['User_Info']['date_of_birth']['day'] = bday_day
-time.sleep(1)
+    default_bday_year = user_config_data['User_Info']['date_of_birth']['year']
+    if not default_bday_year == 0:
+        bday_year = frage_nach_zahl('\nBitte gib dein Geburtsjahr ein (als ganze Jahreszahl, z.B. "1970") [Standard ist "{}"]: '.format(default_bday_year), default_bday_year)
+    else:
+        bday_year = frage_nach_zahl('\nBitte gib dein Geburtsjahr ein (als ganze Jahreszahl, z.B. "1970"): ', default_bday_year)
+    user_config_data['User_Info']['date_of_birth']['year'] = bday_year
+    time.sleep(1)
+
+if bday_month != None:
+    pass
+else:
+    default_bday_month = user_config_data['User_Info']['date_of_birth']['month']
+    if not default_bday_month == 0:
+        bday_month = frage_nach_zahl('\nBitte gib deinen Geburtsmonat ein (als Zahl, z.B. "01") [Standard ist "{}"]: '.format(default_bday_month), default_bday_month)
+    else:
+        bday_month = frage_nach_zahl('\nBitte gib deinen Geburtsmonat ein (als Zahl, z.B. "01"): ', default_bday_month)
+    user_config_data['User_Info']['date_of_birth']['month'] = bday_month
+    time.sleep(1)
+
+if bday_day != None:
+    pass
+else:
+    default_bday_day = user_config_data['User_Info']['date_of_birth']['day']
+    if not default_bday_day == 0:
+        bday_day = frage_nach_zahl('\nBitte gib deinen Geburtstag ein (als Zahl, z.B. "30") [Standard ist "{}"]: '.format(default_bday_day), default_bday_day)
+    else:
+        bday_day = frage_nach_zahl('\nBitte gib deinen Geburtstag ein (als Zahl, z.B. "30"): ', default_bday_day)
+    user_config_data['User_Info']['date_of_birth']['day'] = bday_day
+    time.sleep(1)
 
 end_config(user_config_data, system_name)
